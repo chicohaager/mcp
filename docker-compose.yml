@@ -1,0 +1,65 @@
+name: zimaos-mcp
+services:
+  zimaos-mcp:
+    image: chicohaager/zimaos-mcp:latest
+    build: .
+    container_name: zimaos-mcp
+    restart: unless-stopped
+    ports:
+      - target: 8717
+        published: ${WEBUI_PORT:-8717}
+        protocol: tcp
+    volumes:
+      - /DATA:/DATA
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/dbus:/var/run/dbus:ro
+      - /:/host:ro
+    environment:
+      - TZ=${TZ:-Europe/Berlin}
+      - MCP_PORT=8717
+      - MCP_LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DOCKER_CONFIG=/DATA/.docker
+    privileged: true
+    pid: host
+    network_mode: host
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: zimaos-mcp
+  author: Holger Kuehn
+  category: Developer
+  description:
+    en_us: >-
+      Universal MCP Server for ZimaOS. Enables AI assistants
+      to manage your system via MCP protocol: execute commands, manage Docker containers,
+      read/write files, view system info, and schedule tasks.
+    de_de: >-
+      Universeller MCP Server fuer ZimaOS. Ermoeglicht KI-Assistenten
+      die Systemverwaltung via MCP-Protokoll: Befehle ausfuehren, Docker-Container verwalten,
+      Dateien lesen/schreiben, Systeminfo anzeigen und Tasks planen.
+  developer: Holger Kuehn
+  icon: https://raw.githubusercontent.com/chicohaager/mcp/main/web/icon.svg
+  tagline:
+    en_us: AI-powered system management via MCP
+    de_de: KI-gestützte Systemverwaltung via MCP
+  title:
+    en_us: ZimaOS MCP Server
+    de_de: ZimaOS MCP Server
+  tips:
+    before_install:
+      en_us: |
+        This server provides full system access to AI assistants via MCP protocol.
+
+        **Default endpoint:** `http://<your-ip>:8717/mcp`
+
+        **Security:** All commands are audited. Dangerous operations are blocked.
+      de_de: |
+        Dieser Server bietet KI-Assistenten vollen Systemzugriff via MCP-Protokoll.
+
+        **Standard-Endpunkt:** `http://<deine-ip>:8717/mcp`
+
+        **Sicherheit:** Alle Befehle werden protokolliert. Gefährliche Operationen sind blockiert.
+  index: /
+  port_map: ${WEBUI_PORT:-8717}

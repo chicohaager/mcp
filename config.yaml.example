@@ -1,0 +1,37 @@
+# ZimaOS MCP Server Configuration
+# Copy to /DATA/AppData/zimaos-mcp/config.yaml
+
+# Server settings
+host: "0.0.0.0"
+port: 8717
+log_level: "INFO"
+
+# Security - Allowed filesystem paths
+allowed_paths:
+  - "/DATA/"
+  - "/tmp/"
+  - "/var/log/"
+
+# Read-only paths (can read but not write)
+readonly_paths:
+  - "/var/log/"
+  - "/etc/"
+  - "/proc/"
+  - "/sys/"
+
+# Rate limiting
+rate_limit: 60        # Max requests per window
+rate_window: 60       # Window in seconds
+
+# Data paths
+data_dir: "/DATA/AppData/zimaos-mcp"
+audit_log: "/DATA/AppData/zimaos-mcp/audit.log"
+db_path: "/DATA/AppData/zimaos-mcp/mcp.db"
+
+# Docker
+docker_config: "/DATA/.docker"
+
+# Shell execution
+default_shell: "/bin/bash"
+default_timeout: 60   # Default command timeout
+max_timeout: 300      # Maximum allowed timeout

@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZimaOS MCP Server</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="app-container" x-data x-init="$store.app.init()">
+
+    <!-- Toast Notifications -->
+    <div class="toast-container">
+      <template x-for="t in $store.app.toasts" :key="t.id">
+        <div class="toast" :class="'toast-' + t.type" x-text="t.msg"></div>
+      </template>
+    </div>
+
+    <!-- Login Screen -->
+    <template x-if="!$store.app.authenticated">
+      <div class="login-container" x-data="loginPage">
+        <div class="login-card">
+          <div class="nav-brand" style="margin-bottom:24px;justify-content:center">
+            <span class="dot"></span>
+            ZimaOS MCP
+          </div>
+          <p class="text-muted text-sm" style="text-align:center;margin-bottom:24px">
+            Enter your API key to access the dashboard.<br>
+            <span class="text-xs">Find it in <code>config.yaml</code> on your ZimaOS device.</span>
+          </p>
+          <div class="form-group">
+            <input class="input" type="password" x-model="apiKey" placeholder="API Key"
+              @keydown.enter="login()" autofocus>
+          </div>
+          <template x-if="error">
+            <p class="text-sm" style="color:var(--error);margin-bottom:12px" x-text="error"></p>
+          </template>
+          <button class="btn btn-primary" style="width:100%" @click="login()" :disabled="loading || !apiKey.trim()">
+            <template x-if="loading"><span class="spinner"></span></template>
+            <span x-text="loading ? 'Authenticating...' : 'Login'"></span>
+          </button>
+        </div>
+      </div>
+    </template>
+
+    <!-- Main App (only shown when authenticated) -->
+    <template x-if="$store.app.authenticated">
+      <div>
+
+    <!-- Navigation -->
+    <nav class="nav">
+      <div class="nav-brand">
+        <span class="dot"></span>
+        ZimaOS MCP
+      </div>
+      <button class="nav-link" :class="{ active: $store.app.page === 'dashboard' }"
+        @click="$store.app.navigate('dashboard')">Dashboard</button>
+      <button class="nav-link" :class="{ active: $store.app.page === 'console' }"
+        @click="$store.app.navigate('console')">Console</button>
+      <button class="nav-link" :class="{ active: $store.app.page === 'skills' }"
+        @click="$store.app.navigate('skills')">Skills</button>
+      <button class="nav-link" :class="{ active: $store.app.page === 'tools' }"
+        @click="$store.app.navigate('tools')">Tools</button>
+      <button class="nav-link" :class="{ active: $store.app.page === 'audit' }"
+        @click="$store.app.navigate('audit')">Audit Log</button>
+      <button class="nav-link" :class="{ active: $store.app.page === 'settings' }"
+        @click="$store.app.navigate('settings')">Settings</button>
+      <button class="nav-link" style="margin-left:auto;color:var(--text-muted)"
+        @click="$store.app.logout()">Logout</button>
+    </nav>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- DASHBOARD PAGE -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div class="page" :class="{ active: $store.app.page === 'dashboard' }" x-data="dashboard">
+
+      <!-- Error Banner -->
+      <template x-if="error">
+        <div class="alert alert-error mb-6" x-text="error"></div>
+      </template>
+
+      <!-- Stats Row -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-value" x-text="status?.tool_count || '--'"></div>
+          <div class="stat-label">Tools</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" x-text="status?.skill_count || '0'"></div>
+          <div class="stat-label">Skills</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" x-text="status?.requests_today || '0'"></div>
+          <div class="stat-label">Requests Today</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" x-text="status?.rate_limit_remaining || '--'"></div>
+          <div class="stat-label">Rate Limit Left</div>
+          <div class="meter">
+            <div class="meter-fill ok"
+              :style="'width:' + ((status?.rate_limit_remaining / status?.rate_limit_max) * 100 || 100) + '%'">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Server Info + Audit -->
+      <div class="grid grid-2">
+        <!-- Server Status -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Server Status</span>
+            <span class="badge badge-ok"><span class="badge-dot"></span> Running</span>
+          </div>
+          <table>
+            <tr><td class="text-muted">Uptime</td><td x-text="status?.uptime || '--'"></td></tr>
+            <tr><td class="text-muted">Port</td><td x-text="status?.port || '--'"></td></tr>
+            <tr><td class="text-muted">MCP Endpoint</td><td class="text-mono">/mcp</td></tr>
+          </table>
+        </div>
+
+        <!-- Recent Audit -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Recent Activity</span>
+            <button class="btn btn-secondary btn-sm" @click="$store.app.navigate('audit')">View All</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Time</th><th>Tool</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                <template x-for="(entry, idx) in audit" :key="idx">
+                  <tr>
+                    <td class="text-xs text-mono" x-text="entry.timestamp?.split(' ')[1] || ''"></td>
+                    <td class="text-sm" x-text="entry.tool || ''"></td>
+                    <td>
+                      <span class="badge" :class="entry.status === 'OK' ? 'badge-ok' : 'badge-error'"
+                        x-text="entry.status"></span>
+                    </td>
+                  </tr>
+                </template>
+                <template x-if="audit.length === 0">
+                  <tr><td colspan="3" class="text-muted">No activity yet</td></tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- CONSOLE PAGE -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div class="page" :class="{ active: $store.app.page === 'console' }" x-data="consolePage">
+
+      <div class="flex justify-between items-center mb-6">
+        <h2 style="font-size:20px;font-weight:600">Operations Console</h2>
+        <div class="flex gap-2">
+          <template x-for="cat in categories" :key="cat">
+            <button class="nav-link" :class="{ active: filter === cat }"
+              @click="filter = filter === cat ? '' : cat" x-text="cat"></button>
+          </template>
+        </div>
+      </div>
+
+      <!-- Template Grid -->
+      <div class="grid grid-3">
+        <template x-for="tpl in filteredTemplates" :key="tpl.id">
+          <div class="template-card" @click="runTemplate(tpl)"
+            :class="{ 'template-running': running === tpl.id }">
+            <div class="template-icon" x-text="iconMap[tpl.icon] || '>'"></div>
+            <div class="template-body">
+              <div class="template-name" x-text="tpl.name"></div>
+              <div class="template-desc" x-text="tpl.description"></div>
+            </div>
+            <span class="badge badge-info" x-text="tpl.category" style="align-self:start"></span>
+          </div>
+        </template>
+      </div>
+
+      <!-- Container Selection Modal -->
+      <template x-if="showContainerSelect">
+        <div class="modal-backdrop" @click.self="showContainerSelect = false">
+          <div class="modal" style="max-width:600px">
+            <div class="modal-header">
+              <span class="modal-title">Select Container</span>
+              <button class="modal-close" @click="showContainerSelect = false">&times;</button>
+            </div>
+            <template x-if="containerLoading">
+              <div style="text-align:center;padding:24px">
+                <span class="spinner" style="width:24px;height:24px"></span>
+                <p class="text-muted mt-4">Loading containers...</p>
+              </div>
+            </template>
+            <template x-if="!containerLoading && containerList.length > 0">
+              <div class="tool-list" style="max-height:400px">
+                <template x-for="c in containerList" :key="c.name">
+                  <div class="tool-item" @click="selectContainer(c.name)" style="cursor:pointer">
+                    <div class="flex justify-between items-center">
+                      <div>
+                        <div class="tool-item-name" x-text="c.name"></div>
+                        <div class="tool-item-desc" x-text="c.image"></div>
+                      </div>
+                      <span class="badge" :class="c.status.includes('Up') ? 'badge-ok' : 'badge-error'"
+                        x-text="c.status.split('(')[0].trim()"></span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </template>
+            <template x-if="!containerLoading && containerList.length === 0">
+              <p class="text-muted" style="text-align:center;padding:24px">No containers found</p>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <!-- Interactive Input Modal -->
+      <template x-if="showInput">
+        <div class="modal-backdrop" @click.self="showInput = false">
+          <div class="modal">
+            <div class="modal-header">
+              <span class="modal-title" x-text="inputTemplate?.name"></span>
+              <button class="modal-close" @click="showInput = false">&times;</button>
+            </div>
+            <div class="form-group">
+              <label class="form-label" x-text="inputTemplate?.follow_up?.prompt"></label>
+              <input class="input" x-model="inputValue" @keydown.enter="submitInput()" autofocus>
+            </div>
+            <div class="flex gap-2" style="justify-content:flex-end">
+              <button class="btn btn-secondary" @click="showInput = false">Cancel</button>
+              <button class="btn btn-primary" @click="submitInput()" :disabled="!inputValue.trim()">Run</button>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Results Panel -->
+      <template x-if="results">
+        <div class="card mt-6">
+          <div class="card-header">
+            <span class="card-title" x-text="resultTitle"></span>
+            <div class="flex gap-2">
+              <button class="btn btn-secondary btn-sm" @click="copyResults()">Copy</button>
+              <button class="btn btn-secondary btn-sm" @click="results = null">Close</button>
+            </div>
+          </div>
+
+          <template x-for="(r, i) in results" :key="i">
+            <div class="result-step" :class="r.result?.success === false ? 'result-error' : ''">
+              <div class="result-step-header">
+                <span class="badge" :class="r.result?.success !== false ? 'badge-ok' : 'badge-error'"
+                  x-text="r.result?.success !== false ? 'OK' : 'FAIL'"></span>
+                <span class="text-mono text-sm" x-text="r.tool"></span>
+              </div>
+              <pre class="code" style="max-height:300px;margin-top:8px"
+                x-text="formatResult(r.result)"></pre>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- SKILLS PAGE -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div class="page" :class="{ active: $store.app.page === 'skills' }" x-data="skillsPage">
+
+      <div class="flex justify-between items-center mb-6">
+        <h2 style="font-size:20px;font-weight:600">Skills</h2>
+        <div class="flex gap-2">
+          <button class="btn btn-secondary" @click="showInstall = true">+ Git Install</button>
+        </div>
+      </div>
+
+      <!-- Tab Switcher -->
+      <div class="flex gap-2 mb-6">
+        <button class="nav-link" :class="{ active: tab === 'installed' }" @click="tab = 'installed'">
+          Installed (<span x-text="skills.length"></span>)
+        </button>
+        <button class="nav-link" :class="{ active: tab === 'marketplace' }"
+          @click="tab = 'marketplace'; loadMarketplace()">
+          Marketplace
+        </button>
+      </div>
+
+      <!-- ── Installed Tab ─────────────────────────────────────────────── -->
+      <div x-show="tab === 'installed'">
+
+        <!-- Drop Zone -->
+        <div class="dropzone mb-6"
+          @dragover.prevent="$el.classList.add('dragover')"
+          @dragleave="$el.classList.remove('dragover')"
+          @drop.prevent="$el.classList.remove('dragover'); handleDrop($event)">
+          Drop a .py or .md skill file here to install
+        </div>
+
+        <!-- Skills Grid -->
+        <div class="grid grid-3">
+          <template x-for="skill in skills" :key="skill.name">
+            <div class="skill-card" @click="viewDetail(skill)">
+              <div class="skill-card-header">
+                <span class="skill-name" x-text="skill.name"></span>
+                <label class="toggle" @click.stop>
+                  <input type="checkbox" :checked="skill.active" @change="toggle(skill)">
+                  <span class="toggle-track"></span>
+                </label>
+              </div>
+              <div class="skill-desc" x-text="skill.description || 'No description'"></div>
+              <div class="skill-meta">
+                <span class="badge badge-info" x-text="skill.skill_type || 'python'"></span>
+                <span x-text="skill.source?.startsWith('marketplace:') ? 'Marketplace' : (skill.source === 'local' ? 'Local' : 'Git')"></span>
+                <button class="btn btn-danger btn-sm" @click.stop="remove(skill)"
+                  style="margin-left:auto">Remove</button>
+              </div>
+            </div>
+          </template>
+          <template x-if="skills.length === 0">
+            <div class="card" style="grid-column:1/-1;text-align:center;padding:48px">
+              <p class="text-muted">No skills installed yet.</p>
+              <p class="text-muted text-sm mt-4">Browse the Marketplace tab or drop a file above.</p>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- ── Marketplace Tab ───────────────────────────────────────────── -->
+      <div x-show="tab === 'marketplace'">
+
+        <template x-if="marketplaceLoading">
+          <div class="card" style="text-align:center;padding:48px">
+            <span class="spinner" style="width:24px;height:24px"></span>
+            <p class="text-muted mt-4">Loading marketplace...</p>
+          </div>
+        </template>
+
+        <template x-if="!marketplaceLoading && marketplace.length > 0">
+          <div>
+            <p class="text-sm text-muted mb-4">
+              Source: <span class="text-mono" x-text="marketplaceRegistry"></span>
+              &mdash; <span x-text="marketplace.length"></span> skills available
+            </p>
+            <div class="grid grid-3">
+              <template x-for="item in marketplace" :key="item.name">
+                <div class="skill-card">
+                  <div class="skill-card-header">
+                    <span class="skill-name" x-text="item.name"></span>
+                    <template x-if="item.installed">
+                      <span class="badge badge-ok"><span class="badge-dot"></span> Installed</span>
+                    </template>
+                  </div>
+                  <div class="skill-desc" x-text="item.plugin_description || item.plugin"></div>
+                  <div class="skill-meta">
+                    <span class="badge badge-info" x-text="item.plugin"></span>
+                    <template x-if="!item.installed">
+                      <button class="btn btn-primary btn-sm" style="margin-left:auto"
+                        @click.stop="installFromMarketplace(item.name)" :disabled="installing">
+                        Install
+                      </button>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <template x-if="!marketplaceLoading && marketplace.length === 0">
+          <div class="card" style="text-align:center;padding:48px">
+            <p class="text-muted">Could not load marketplace.</p>
+          </div>
+        </template>
+      </div>
+
+      <!-- Install Modal -->
+      <template x-if="showInstall">
+        <div class="modal-backdrop" @click.self="showInstall = false">
+          <div class="modal">
+            <div class="modal-header">
+              <span class="modal-title">Install Skill</span>
+              <button class="modal-close" @click="showInstall = false">&times;</button>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Git Repository URL</label>
+              <input class="input" x-model="gitUrl" placeholder="https://github.com/user/skill-repo"
+                @keydown.enter="install()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Skill Name (optional)</label>
+              <input class="input" x-model="skillName" placeholder="Auto-detected from repo name">
+            </div>
+            <div class="flex gap-2" style="justify-content:flex-end">
+              <button class="btn btn-secondary" @click="showInstall = false">Cancel</button>
+              <button class="btn btn-primary" @click="install()" :disabled="installing || !gitUrl">
+                <template x-if="installing"><span class="spinner"></span></template>
+                <span x-text="installing ? 'Installing...' : 'Install'"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Skill Detail Modal -->
+      <template x-if="showDetail">
+        <div class="modal-backdrop" @click.self="showDetail = false">
+          <div class="modal" style="max-width:700px;max-height:80vh;overflow-y:auto">
+            <div class="modal-header">
+              <span class="modal-title" x-text="detailSkill?.name"></span>
+              <button class="modal-close" @click="showDetail = false">&times;</button>
+            </div>
+            <div class="flex gap-2 mb-4">
+              <span class="badge badge-info" x-text="detailSkill?.skill_type"></span>
+              <span class="text-xs text-muted" x-text="detailSkill?.source"></span>
+            </div>
+            <pre class="code" style="max-height:60vh" x-text="detailContent"></pre>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- TOOLS PAGE -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div class="page" :class="{ active: $store.app.page === 'tools' }" x-data="toolsPage">
+
+      <h2 style="font-size:20px;font-weight:600" class="mb-6">Tool Explorer</h2>
+
+      <div class="grid grid-2">
+        <!-- Tool List -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Tools</span>
+            <span class="badge badge-info" x-text="tools.length + ' total'"></span>
+          </div>
+          <input class="input mb-4" x-model="search" placeholder="Search tools...">
+          <div class="tool-list">
+            <template x-for="tool in filteredTools" :key="tool.name">
+              <div class="tool-item" :class="{ active: selected?.name === tool.name }"
+                @click="selectTool(tool)">
+                <div class="tool-item-name" x-text="tool.name"></div>
+                <div class="tool-item-desc" x-text="tool.description?.split('.')[0] || ''"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Tool Tester -->
+        <div class="card">
+          <template x-if="!selected">
+            <div style="text-align:center;padding:48px">
+              <p class="text-muted">Select a tool to test it</p>
+            </div>
+          </template>
+          <template x-if="selected">
+            <div>
+              <div class="card-header">
+                <span class="card-title" x-text="selected.name"></span>
+                <button class="btn btn-primary btn-sm" @click="test()" :disabled="testing">
+                  <template x-if="testing"><span class="spinner"></span></template>
+                  <span x-text="testing ? 'Running...' : 'Execute'"></span>
+                </button>
+              </div>
+              <p class="text-sm text-muted mb-4" x-text="selected.description"></p>
+
+              <!-- Parameters -->
+              <template x-if="selected.parameters && Object.keys(selected.parameters).length">
+                <div>
+                  <template x-for="[pname, pinfo] in Object.entries(selected.parameters)" :key="pname">
+                    <div class="form-group">
+                      <label class="form-label">
+                        <span x-text="pname"></span>
+                        <span x-show="pinfo.required" style="color:var(--error)">*</span>
+                        <span class="text-muted" x-show="pinfo.type" x-text="' (' + pinfo.type + ')'"></span>
+                      </label>
+                      <input class="input" x-model="params[pname]"
+                        :placeholder="pinfo.default || ''">
+                    </div>
+                  </template>
+                </div>
+              </template>
+
+              <!-- Result -->
+              <template x-if="result !== null">
+                <div class="mt-4">
+                  <div class="flex justify-between items-center">
+                    <span class="card-title">Result</span>
+                    <button class="btn btn-secondary btn-sm" @click="copyResult()">Copy</button>
+                  </div>
+                  <pre class="code mt-4" x-text="JSON.stringify(result, null, 2)"></pre>
+                </div>
+              </template>
+
+              <!-- History -->
+              <template x-if="history.length > 0">
+                <div class="mt-6">
+                  <span class="card-title">History</span>
+                  <div class="tool-list mt-4" style="max-height:200px">
+                    <template x-for="(h, i) in history" :key="i">
+                      <div class="tool-item" @click="result = h.result">
+                        <div class="flex justify-between">
+                          <span class="tool-item-name" x-text="h.tool"></span>
+                          <span class="text-xs text-muted" x-text="h.timestamp"></span>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- AUDIT PAGE -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div class="page" :class="{ active: $store.app.page === 'audit' }" x-data="auditPage">
+
+      <div class="flex justify-between items-center mb-6">
+        <h2 style="font-size:20px;font-weight:600">Audit Log</h2>
+        <span class="text-muted text-sm" x-text="total + ' entries'"></span>
+      </div>
+
+      <!-- Search -->
+      <div class="flex gap-4 mb-4">
+        <input class="input" x-model="search" placeholder="Search logs..."
+          @keydown.enter="doSearch()" style="max-width:400px">
+        <button class="btn btn-secondary" @click="doSearch()">Search</button>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Status</th>
+                <th>Tool</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="(entry, idx) in entries" :key="idx">
+                <tr>
+                  <td class="text-mono text-xs" x-text="entry.timestamp"></td>
+                  <td>
+                    <span class="badge" :class="entry.status === 'OK' ? 'badge-ok' : 'badge-error'"
+                      x-text="entry.status"></span>
+                  </td>
+                  <td x-text="entry.tool"></td>
+                  <td class="text-sm truncate" style="max-width:300px" x-text="entry.detail"></td>
+                </tr>
+              </template>
+              <template x-if="entries.length === 0">
+                <tr><td colspan="4" class="text-muted">No audit entries found</td></tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="flex justify-between items-center mt-4">
+          <button class="btn btn-secondary btn-sm" @click="prevPage()" :disabled="offset === 0">Previous</button>
+          <span class="text-xs text-muted"
+            x-text="(offset + 1) + '-' + Math.min(offset + limit, total) + ' of ' + total"></span>
+          <button class="btn btn-secondary btn-sm" @click="nextPage()"
+            :disabled="offset + limit >= total">Next</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- SETTINGS PAGE -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div class="page" :class="{ active: $store.app.page === 'settings' }" x-data="settingsPage">
+
+      <div class="flex justify-between items-center mb-6">
+        <h2 style="font-size:20px;font-weight:600">Settings</h2>
+        <button class="btn btn-primary" @click="save()" :disabled="saving">
+          <template x-if="saving"><span class="spinner"></span></template>
+          <span x-text="saving ? 'Saving...' : 'Save Changes'"></span>
+        </button>
+      </div>
+
+      <div class="grid grid-2">
+        <!-- General -->
+        <div class="card">
+          <span class="card-title">General</span>
+          <div class="form-group mt-4">
+            <label class="form-label">Log Level</label>
+            <select class="input" x-model="config.log_level">
+              <option value="DEBUG">DEBUG</option>
+              <option value="INFO">INFO</option>
+              <option value="WARNING">WARNING</option>
+              <option value="ERROR">ERROR</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Default Timeout (seconds)</label>
+            <input class="input" type="number" x-model="config.default_timeout">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Timeout (seconds)</label>
+            <input class="input" type="number" x-model="config.max_timeout">
+          </div>
+        </div>
+
+        <!-- Rate Limiting -->
+        <div class="card">
+          <span class="card-title">Rate Limiting</span>
+          <div class="form-group mt-4">
+            <label class="form-label">Max Requests</label>
+            <input class="input" type="number" x-model="config.rate_limit">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Window (seconds)</label>
+            <input class="input" type="number" x-model="config.rate_window">
+          </div>
+        </div>
+
+        <!-- Paths -->
+        <div class="card" style="grid-column:1/-1">
+          <span class="card-title">Allowed Paths</span>
+          <p class="text-sm text-muted mt-4 mb-4">
+            Filesystem paths that MCP tools can access. One per line.
+          </p>
+          <textarea class="textarea" rows="4"
+            :value="Array.isArray(config.allowed_paths) ? config.allowed_paths.join('\n') : config.allowed_paths"
+            @input="config.allowed_paths = $event.target.value.split('\n').filter(l => l.trim())"></textarea>
+        </div>
+      </div>
+    </div>
+
+      </div>
+    </template>
+  </div>
+
+  <script src="/vendor/alpine.min.js" defer></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+
+# Runtime data
+config.yaml
+users.json
+skills.json
+cron_jobs.json
+webhooks.json
+audit.log
+audit.log.*
+mcp.db
+
+# Backups
+backups/
+
+# Installed skills (downloaded at runtime)
+skills/
+
+# Docker
+.docker/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
