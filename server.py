@@ -895,4 +895,4 @@ if __name__ == "__main__":
         atexit.register(cron_scheduler.stop)
         original_run(**kwargs)
 
-    _run_with_scheduler(transport="sse")
+    _run_with_scheduler(transport="streamable-http")

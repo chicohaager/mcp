@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-A FastMCP-based MCP server for ZimaOS with 40 tools, web dashboard, and skill marketplace. Provides shell execution, filesystem ops, Docker management (containers + images), system info, network diagnostics, ZimaOS-specific features, cron scheduling with in-process executor, maintenance tools, and updates. Runs as a Docker container on ZimaOS with streamable-http transport on port 8717.
+A FastMCP-based MCP server for ZimaOS with 53 tools, web dashboard, and skill marketplace. Provides shell execution, filesystem ops, Docker management (containers + images), system info, network diagnostics, ZimaOS-specific features, cron scheduling with in-process executor, maintenance tools, and updates. Runs as a Docker container on ZimaOS with streamable-http transport on port 8717.
 
 ## Build & Deploy
 
@@ -81,4 +81,4 @@ All tools return: `{"success": bool, "data": ..., "error": str | None}`
 
 ## Version
 
-Current version: `1.2.0` (defined in `config.py` as `VERSION`)
+Current version: `1.2.3` (defined in `config.py` as `VERSION`)

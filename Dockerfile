@@ -10,7 +10,7 @@ FROM python:3.11-slim
 
 LABEL maintainer="Holger Kuehn"
 LABEL description="ZimaOS Universal MCP Server"
-LABEL version="1.2.2"
+LABEL version="1.2.3"
 
 # Install docker CLI for container management
 RUN apt-get update && \
