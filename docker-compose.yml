@@ -5,10 +5,6 @@ services:
     build: .
     container_name: zimaos-mcp
     restart: unless-stopped
-    ports:
-      - target: 8717
-        published: ${WEBUI_PORT:-8717}
-        protocol: tcp
     volumes:
       - /DATA:/DATA
       - /var/run/docker.sock:/var/run/docker.sock
@@ -62,4 +58,4 @@ x-casaos:
 
         **Sicherheit:** Alle Befehle werden protokolliert. Gefährliche Operationen sind blockiert.
   index: /
-  port_map: ${WEBUI_PORT:-8717}
+  port_map: "8717"
